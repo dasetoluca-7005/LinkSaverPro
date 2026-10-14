@@ -1,0 +1,11 @@
+{
+  "name": "Link Saver Pro",
+  "short_name": "Link Saver",
+  "description": "Guarda y organiza tus enlaces favoritos",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f0f0f5",
+  "theme_color": "#007aff",
+  "icons": []
+}

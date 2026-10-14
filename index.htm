@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Link Saver Pro</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Link Saver">
+  <meta name="theme-color" content="#007aff">
+  <link rel="manifest" href="./manifest.json">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="apple-touch-icon" href="icon.png">
+
+  <style>
+    body { font-family: Arial; margin: 10px; background: #f0f0f5; }
+    h1, h2 { text-align: center; color: #007aff; }
+    select, input, button { margin: 5px 0; padding: 8px; width: 100%; box-sizing: border-box; }
+    button { background: #007aff; color: white; border: none; border-radius: 5px; font-size: 16px; }
+    .back-btn { background: gray; margin-top: 10px; }
+    #list div, #categories div { background: white; padding: 10px; margin: 5px 0; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.2); cursor: pointer; text-align: center; }
+    img { border-radius: 5px; margin-top: 5px; max-width: 100%; }
+    .delete-btn { background: red; margin-top: 5px; }
+    .favorite-btn { background: gold; color: black; margin-top: 5px; }
+    .category-header { font-weight: bold; color: #007aff; margin-top: 10px; }
+    #search { margin: 5px 0; padding: 8px; width: 100%; box-sizing: border-box; border-radius: 5px; border: 1px solid #ccc; }
+  </style>
+</head>
+<body>
+
+<h1>📂 Link Saver Pro</h1>
+
+<div id="menu">
+  <h2>Categorías</h2>
+  <input id="search" placeholder="Buscar..." oninput="renderCategories()">
+  <div id="categories"></div>
+  <button onclick="showAddForm()">Agregar Item</button>
+  <button onclick="deleteCategoryPrompt()" style="background:#ff6600;">Borrar categoría completa</button>
+</div>
+
+<div id="addForm" style="display:none;">
+  <select id="categorySelect">
+    <option value="Restaurantes">Restaurantes</option>
+    <option value="Canciones">Canciones</option>
+    <option value="Museos">Museos</option>
+    <option value="Viajes">Viajes</option>
+    <option value="Teatro">Teatro</option>
+    <option value="Actividades">Actividades</option>
+    <option value="Recetas">Recetas</option>
+    <option value="Redes sociales">Redes sociales</option>
+    <option value="Ubicaciones">Ubicaciones</option>
+  </select>
+  <input id="title" placeholder="Título">
+  <input id="url" placeholder="URL">
+  <input type="file" id="image">
+  <button onclick="saveItem()">Guardar</button>
+  <button class="back-btn" onclick="showMenu()">Volver al menú</button>
+</div>
+
+<div id="listView" style="display:none;">
+  <h2 id="listTitle"></h2>
+  <input id="searchList" placeholder="Buscar en esta categoría..." oninput="renderList(currentCategory)">
+  <div id="list"></div>
+  <button class="back-btn" onclick="showMenu()">Volver al menú</button>
+</div>
+
+<script>
+let items = JSON.parse(localStorage.getItem("items")) || [];
+let currentCategory = "";
+
+// Mostrar menú inicial
+function showMenu() {
+  document.getElementById("menu").style.display = "block";
+  document.getElementById("addForm").style.display = "none";
+  document.getElementById("listView").style.display = "none";
+  renderCategories();
+}
+
+// Mostrar formulario agregar
+function showAddForm() {
+  document.getElementById("menu").style.display = "none";
+  document.getElementById("addForm").style.display = "block";
+  document.getElementById("listView").style.display = "none";
+}
+
+// Guardar item
+function saveItem() {
+  const category = document.getElementById("categorySelect").value;
+  const title = document.getElementById("title").value.trim();
+  const url = document.getElementById("url").value.trim();
+  const imageInput = document.getElementById("image");
+
+  if (!title && !url && !imageInput.files[0]) return alert("Agrega al menos un título, URL o imagen.");
+
+  const reader = new FileReader();
+  reader.onload = function() {
+    const item = { category, title, url, image: reader.result, favorite:false };
+    items.push(item);
+    localStorage.setItem("items", JSON.stringify(items));
+    document.getElementById("title").value = "";
+    document.getElementById("url").value = "";
+    document.getElementById("image").value = "";
+    showMenu();
+  };
+
+  if (imageInput.files[0]) reader.readAsDataURL(imageInput.files[0]);
+  else reader.onload();
+}
+
+// Borrar item
+function deleteItem(index) {
+  if (!confirm("¿Eliminar este item?")) return;
+  items.splice(index, 1);
+  localStorage.setItem("items", JSON.stringify(items));
+  renderList(currentCategory);
+}
+
+// Marcar/desmarcar favorito
+function toggleFavorite(index) {
+  items[index].favorite = !items[index].favorite;
+  localStorage.setItem("items", JSON.stringify(items));
+  renderList(currentCategory);
+}
+
+// Renderizar categorías
+function renderCategories() {
+  const catDiv = document.getElementById("categories");
+  const searchText = document.getElementById("search").value.toLowerCase();
+  catDiv.innerHTML = "";
+
+  const uniqueCategories = [...new Set(items.map(i => i.category))];
+  const defaultCategories = ["Restaurantes","Canciones","Museos","Viajes","Teatro","Actividades","Recetas","Redes sociales","Ubicaciones"];
+  const categories = Array.from(new Set([...defaultCategories, ...uniqueCategories]));
+
+  categories
+    .filter(c => c.toLowerCase().includes(searchText))
+    .forEach(cat => {
+      const div = document.createElement("div");
+      div.textContent = cat;
+      div.onclick = () => renderList(cat);
+      catDiv.appendChild(div);
+    });
+}
+
+// Renderizar lista por categoría
+function renderList(category) {
+  currentCategory = category;
+  document.getElementById("menu").style.display = "none";
+  document.getElementById("addForm").style.display = "none";
+  document.getElementById("listView").style.display = "block";
+  document.getElementById("listTitle").textContent = category;
+
+  const searchText = document.getElementById("searchList").value.toLowerCase();
+  const list = document.getElementById("list");
+  list.innerHTML = "";
+
+  const filtered = items.map((item, i) => ({item, index: i}))
+    .filter(x => x.item.category === category && (x.item.title.toLowerCase().includes(searchText) || (x.item.url && x.item.url.toLowerCase().includes(searchText))));
+
+  filtered.forEach(({item, index}) => {
+    const div = document.createElement("div");
+    div.innerHTML = `
+      <h3>${item.title} ${item.favorite ? "⭐" : ""}</h3>
+      ${item.url ? `<a href="${item.url}" target="_blank">${item.url}</a>` : ""}
+      ${item.image ? `<br><img src="${item.image}">` : ""}
+      <button class="delete-btn" onclick="deleteItem(${index})">Eliminar</button>
+      <button class="favorite-btn" onclick="toggleFavorite(${index})">${item.favorite ? "Quitar Favorito" : "Marcar Favorito"}</button>
+    `;
+    list.appendChild(div);
+  });
+}
+
+// Borrar categoría completa
+function deleteCategoryPrompt() {
+  const category = prompt("Escribe la categoría a borrar:");
+  if (!category) return;
+  if (!confirm(`¿Borrar todos los items de la categoría "${category}"?`)) return;
+  items = items.filter(i => i.category !== category);
+  localStorage.setItem("items", JSON.stringify(items));
+  showMenu();
+}
+
+// Inicializar
+showMenu();
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("./sw.js")
+      .catch(error => console.error("Error al registrar la app:", error));
+  });
+}
+</script>
+
+</body>
+</html>
