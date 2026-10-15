@@ -1,9 +1,9 @@
-
-const CACHE_NAME = "link-saver-pro-v1";
+const CACHE_NAME = "link-saver-pro-v2";
 const APP_FILES = [
   "./",
-  "./index.html",
-  "./manifest.json"
+  "./index.htm",
+  "./manifest.json",
+  "./icon.png"
 ];
 
 self.addEventListener("install", event => {
@@ -18,8 +18,7 @@ self.addEventListener("activate", event => {
   event.waitUntil(
     caches.keys().then(keys =>
       Promise.all(
-        keys
-          .filter(key => key !== CACHE_NAME)
+        keys.filter(key => key.startsWith("link-saver-pro-") && key !== CACHE_NAME)
           .map(key => caches.delete(key))
       )
     ).then(() => self.clients.claim())
@@ -28,23 +27,16 @@ self.addEventListener("activate", event => {
 
 self.addEventListener("fetch", event => {
   if (event.request.method !== "GET") return;
+  const requestUrl = new URL(event.request.url);
+  if (requestUrl.origin !== self.location.origin) return;
 
   event.respondWith(
-    caches.match(event.request).then(cached => {
-      if (cached) return cached;
-
-      return fetch(event.request).then(response => {
-        if (
-          response.ok &&
-          new URL(event.request.url).origin === self.location.origin
-        ) {
-          const copy = response.clone();
-          caches.open(CACHE_NAME).then(cache =>
-            cache.put(event.request, copy)
-          );
-        }
-        return response;
-      });
-    })
+    fetch(event.request).then(response => {
+      if (response && response.ok) {
+        const copy = response.clone();
+        caches.open(CACHE_NAME).then(cache => cache.put(event.request, copy));
+      }
+      return response;
+    }).catch(() => caches.match(event.request).then(cached => cached || caches.match("./index.htm")))
   );
 });
