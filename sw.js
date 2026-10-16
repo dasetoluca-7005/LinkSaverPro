@@ -1,4 +1,4 @@
-const CACHE_NAME = "link-saver-pro-v3";
+const CACHE_NAME = "link-saver-pro-v4";
 const APP_FILES = ["./", "./index.html", "./manifest.json", "./icon.png"];
 
 self.addEventListener("install", event => {
