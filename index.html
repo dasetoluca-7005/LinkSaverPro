@@ -108,6 +108,25 @@ let items = [];
 try { items = JSON.parse(localStorage.getItem("items") || "[]"); if (!Array.isArray(items)) items = []; } catch (_) { items = []; }
 let customCategories = [];
 try { customCategories = JSON.parse(localStorage.getItem("linkSaverCategories") || "[]"); if (!Array.isArray(customCategories)) customCategories = []; } catch (_) { customCategories = []; }
+let deletedCategories = [];
+try { deletedCategories = JSON.parse(localStorage.getItem("linkSaverDeletedCategories") || "[]"); if (!Array.isArray(deletedCategories)) deletedCategories = []; } catch (_) { deletedCategories = []; }
+function categoryIsDeleted(name) {
+  return deletedCategories.some(c => String(c).toLowerCase() === String(name).toLowerCase());
+}
+function getActiveCategories() {
+  return [...new Set([...DEFAULT_CATEGORIES, ...customCategories, ...items.map(i => i.category).filter(Boolean)])]
+    .filter(c => !categoryIsDeleted(c));
+}
+function persistCategories() {
+  try {
+    localStorage.setItem("linkSaverCategories", JSON.stringify(customCategories));
+    localStorage.setItem("linkSaverDeletedCategories", JSON.stringify(deletedCategories));
+    return true;
+  } catch (e) {
+    alert("No se pudo guardar el cambio de categorías. Comprueba el almacenamiento del iPhone.");
+    return false;
+  }
+}
 let currentCategory = "";
 let editingIndex = null;
 let selectedImage = null;
@@ -143,7 +162,8 @@ function showAddForm() {
   locationWasCleared = false;
   document.getElementById("formHeading").textContent = "Agregar registro";
   document.getElementById("saveButton").textContent = "Guardar";
-  document.getElementById("categorySelect").value = DEFAULT_CATEGORIES[0];
+  refreshCategoryOptions();
+  document.getElementById("categorySelect").value = getActiveCategories()[0] || DEFAULT_CATEGORIES[0];
   document.getElementById("title").value = "";
   document.getElementById("url").value = "";
   document.getElementById("placeSearch").value = "";
@@ -317,6 +337,7 @@ async function compressExistingImages() {
 
 function saveItem() {
   const category = document.getElementById("categorySelect").value;
+  deletedCategories = deletedCategories.filter(c => String(c).toLowerCase() !== String(category).toLowerCase());
   const title = document.getElementById("title").value.trim();
   const url = document.getElementById("url").value.trim();
   if (!title && !url && !selectedImage && !selectedLocation) {
@@ -336,6 +357,7 @@ function saveItem() {
   if (editingIndex !== null) items[editingIndex] = item;
   else items.push(item);
   if (!persistItems()) return;
+  if (!persistCategories()) return;
   const categoryToShow = category;
   editingIndex = null;
   selectedImage = null;
@@ -392,7 +414,7 @@ function toggleFavorite(index) {
 function refreshCategoryOptions() {
   const select = document.getElementById("categorySelect");
   const previous = select.value;
-  const categories = [...new Set([...DEFAULT_CATEGORIES, ...customCategories, ...items.map(i => i.category).filter(Boolean)])];
+  const categories = getActiveCategories();
   select.innerHTML = "";
   categories.forEach(cat => {
     const option = document.createElement("option");
@@ -406,7 +428,7 @@ function renderCategories() {
   const target = document.getElementById("categories");
   const search = document.getElementById("search").value.toLowerCase().trim();
   target.innerHTML = "";
-  const categories = [...new Set([...DEFAULT_CATEGORIES, ...customCategories, ...items.map(i => i.category).filter(Boolean)])];
+  const categories = getActiveCategories();
   categories.filter(c => c.toLowerCase().includes(search)).forEach(cat => {
     const count = items.filter(i => i.category === cat).length;
     const div = document.createElement("div");
@@ -500,23 +522,49 @@ function addCategoryPrompt() {
   const name = prompt("Escribe el nombre de la nueva categoría:");
   if (!name || !name.trim()) return;
   const cleanName = name.trim();
-  const existing = [...new Set([...DEFAULT_CATEGORIES, ...customCategories, ...items.map(i => i.category).filter(Boolean)])];
+  const existing = getActiveCategories();
   if (existing.some(c => c.toLowerCase() === cleanName.toLowerCase())) {
     alert("Esa categoría ya existe.");
     return;
   }
-  customCategories.push(cleanName);
-  localStorage.setItem("linkSaverCategories", JSON.stringify(customCategories));
+  deletedCategories = deletedCategories.filter(c => String(c).toLowerCase() !== cleanName.toLowerCase());
+  if (![...DEFAULT_CATEGORIES, ...customCategories].some(c => c.toLowerCase() === cleanName.toLowerCase())) {
+    customCategories.push(cleanName);
+  }
+  if (!persistCategories()) return;
   refreshCategoryOptions();
   renderCategories();
   alert('Categoría "' + cleanName + '" agregada. Ya puedes guardar registros en ella.');
 }
 function deleteCategoryPrompt() {
-  const category = prompt("Escribe exactamente la categoría que quieres vaciar:");
-  if (!category) return;
-  if (!confirm('¿Borrar todos los registros de la categoría "' + category + '"?')) return;
-  items = items.filter(i => i.category !== category);
-  if (persistItems()) showMenu();
+  const categoryInput = prompt("Escribe exactamente el nombre de la categoría que quieres borrar del menú:");
+  if (!categoryInput || !categoryInput.trim()) return;
+  const requested = categoryInput.trim();
+  const category = getActiveCategories().find(c => c.toLowerCase() === requested.toLowerCase());
+  if (!category) {
+    alert("No encontré esa categoría en el menú. Revisa que el nombre esté escrito correctamente.");
+    return;
+  }
+  const count = items.filter(i => String(i.category || "").toLowerCase() === category.toLowerCase()).length;
+  const message = '¿Eliminar la categoría "' + category + '" del menú y borrar sus ' + count + (count === 1 ? ' registro guardado?' : ' registros guardados?');
+  if (!confirm(message)) return;
+  const oldItems = items;
+  const oldCustom = customCategories.slice();
+  const oldDeleted = deletedCategories.slice();
+  items = items.filter(i => String(i.category || "").toLowerCase() !== category.toLowerCase());
+  customCategories = customCategories.filter(c => c.toLowerCase() !== category.toLowerCase());
+  if (!categoryIsDeleted(category)) deletedCategories.push(category);
+  if (!persistItems() || !persistCategories()) {
+    items = oldItems;
+    customCategories = oldCustom;
+    deletedCategories = oldDeleted;
+    persistItems();
+    persistCategories();
+    return;
+  }
+  refreshCategoryOptions();
+  showMenu();
+  alert('La categoría "' + category + '" ya no aparecerá en el menú.');
 }
 
 // Al salir de un campo, quitar el foco para evitar que el zoom del iPhone permanezca.
